@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
@@ -97,13 +97,13 @@ contract MockYeetTrifectaVault is ERC4626 {
   /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
   /// Used in {IERC4626-mint} and {IERC4626-withdraw} operations.
   function _feeOnRaw(uint256 assets, uint256 feeBasisPoints) private pure returns (uint256) {
-    return assets.mulDiv(feeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Up);
+    return assets.mulDiv(feeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
   }
 
   /// @dev Calculates the fee part of an amount `assets` that already includes fees.
   /// Used in {IERC4626-deposit} and {IERC4626-redeem} operations.
   function _feeOnTotal(uint256 assets, uint256 feeBasisPoints) private pure returns (uint256) {
-    return assets.mulDiv(feeBasisPoints, feeBasisPoints + _BASIS_POINT_SCALE, Math.Rounding.Up);
+    return assets.mulDiv(feeBasisPoints, feeBasisPoints + _BASIS_POINT_SCALE, Math.Rounding.Ceil);
   }
 
   function _decimalsOffset() internal pure override returns (uint8) {

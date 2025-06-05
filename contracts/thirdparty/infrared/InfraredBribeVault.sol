@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
-// import "hardhat/console.sol";
-
-import "../interfaces/IStakingPool.sol";
-import "./Vault.sol";
+import "./interfaces/IInfraredStakingPool.sol";
+import "../../vaults/Vault.sol";
 
 contract InfraredBribeVault is Vault {
 
-  IStakingPool public stakingPool;
+  IInfraredStakingPool public stakingPool;
 
   constructor(
     address _protocol,
@@ -21,17 +19,21 @@ contract InfraredBribeVault is Vault {
   ) Vault(_protocol, _settings, _redeemPoolFactory, _bribesPoolFactory, _assetToken_, _pTokenName, _pTokensymbol) {
     require(_stakingPool_ != address(0), "Zero address detected");
     
-    stakingPool = IStakingPool(_stakingPool_);
-    IERC20(assetToken).approve(address(stakingPool), type(uint256).max);
+    stakingPool = IInfraredStakingPool(_stakingPool_);
+  }
+
+  function redeemAssetToken() public view override returns (address) {
+    return assetToken;
   }
 
   /* ========== INTERNAL FUNCTIONS ========== */
 
-  function _balanceOfUnderlyingVault() internal view override returns (uint256) {
+  function _assetBalance() internal view override returns (uint256) {
     return stakingPool.balanceOf(address(this));
   }
 
   function _depositToUnderlyingVault(uint256 amount) internal override {
+    IERC20(assetToken).approve(address(stakingPool), amount);
     stakingPool.stake(amount);
   }
 
@@ -47,19 +49,9 @@ contract InfraredBribeVault is Vault {
   }
 
   function _doUpdateStakingBribes(IBribesPool stakingBribesPool) internal override {
-    uint256 rewardTokensCount = 0;
-    while(true) {
-      try stakingPool.rewardTokens(rewardTokensCount) returns (address) {
-        rewardTokensCount++;
-      } catch {
-        break;
-      }
-    }
-
-    address[] memory rewardTokens = new address[](rewardTokensCount);
-    uint256[] memory prevBalances = new uint256[](rewardTokensCount);
+    address[] memory rewardTokens = stakingPool.getAllRewardTokens();
+    uint256[] memory prevBalances = new uint256[](rewardTokens.length);
     for (uint256 i = 0; i < rewardTokens.length; i++) {
-      rewardTokens[i] = stakingPool.rewardTokens(i);
       prevBalances[i] = IERC20(rewardTokens[i]).balanceOf(address(this));
     }
 

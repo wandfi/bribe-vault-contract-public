@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "../interfaces/IBribesPool.sol";
 import "../interfaces/IProtocolSettings.sol";
 import "../interfaces/IPToken.sol";
-import "../interfaces/IStakingPool.sol";
 import "../interfaces/IVault.sol";
 import "../libs/Constants.sol";
 import "../libs/TokensTransfer.sol";
+import "../thirdparty/infrared/interfaces/IInfraredStakingPool.sol";
 import "../tokens/PToken.sol";
 import "../vaults/RedeemPool.sol";
 
 contract MockVault is IVault {
   address public immutable settings;
-  IStakingPool public immutable stakingPool;
+  IInfraredStakingPool public immutable stakingPool;
 
   IERC20 internal immutable _assetToken;
   IPToken internal immutable _pToken;
@@ -28,7 +28,7 @@ contract MockVault is IVault {
     string memory _pTokenName, string memory _pTokensymbol
   ) {
     settings = _settings;
-    stakingPool = IStakingPool(_stakingPool_);
+    stakingPool = IInfraredStakingPool(_stakingPool_);
 
     _assetToken = IERC20(_assetToken_);
     _pToken = new PToken(_protocol, _settings, _pTokenName, _pTokensymbol, IERC20Metadata(_assetToken_).decimals());
@@ -45,6 +45,10 @@ contract MockVault is IVault {
   }
 
   function assetToken() public view override returns (address) {
+    return address(_assetToken);
+  }
+
+  function redeemAssetToken() public view returns (address) {
     return address(_assetToken);
   }
   

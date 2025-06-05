@@ -16,7 +16,11 @@ const chainIds = {
   ganache: 1337,
   mainnet: 1,
   sepolia: 11155111,
+  bera: 80094,
   'bera-bartio': 80084,
+  story: 1514,
+  'monad-testnet': 10143,
+  'tac-spb': 2391
 };
 
 // Ensure that we have all the environment variables we need.
@@ -36,9 +40,21 @@ function createTestnetConfig(network: keyof typeof chainIds): NetworkUserConfig 
     case "sepolia":
       nodeUrl = `https://sepolia.infura.io/v3/${infuraKey}`;
       break;
+    case 'bera':
+      nodeUrl = 'https://rpc.berachain.com';
+      break;
     case 'bera-bartio':
       nodeUrl = 'https://bartio.rpc.berachain.com';
       break;
+    case 'story':
+      nodeUrl = 'https://mainnet.storyrpc.io';
+      break;
+    case 'monad-testnet':
+      nodeUrl = 'https://testnet-rpc.monad.xyz';
+      break;
+    case 'tac-spb':
+      nodeUrl = 'https://spb.rpc.tac.build';
+      break;      
   }
 
   return {
@@ -58,11 +74,16 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.8.18",
+        version: "0.8.20",
         settings: {
-          metadata: {
-            bytecodeHash: "ipfs",
-          },
+          // needed for verifying contracts on monand testnet
+          // metadata: {
+          //   bytecodeHash: "none", // disable ipfs
+          //   useLiteralContent: true // store source code in the json file directly
+          // },
+          // metadata: {
+          //   bytecodeHash: "ipfs",
+          // },
           // You should disable the optimizer when debugging
           // https://hardhat.org/hardhat-network/#solidity-optimizer-support
           optimizer: {
@@ -75,14 +96,14 @@ const config: HardhatUserConfig = {
             //   },
             // },
           },
-          viaIR: true
+          // viaIR: true
         },
       },
     ],
   },
-  abiExporter: {
-    flat: true,
-  },
+  // abiExporter: {
+  //   flat: true,
+  // },
   gasReporter: {
     enabled: false
   },
@@ -96,14 +117,38 @@ const config: HardhatUserConfig = {
   },
   sourcify: {
     enabled: false
+    // Uncomment the following lines to enable contract verify on monand testnet
+    // ref: https://docs.monad.xyz/getting-started/verify-smart-contract/hardhat
+    // enabled: true,
+    // apiUrl: "https://sourcify-api-monad.blockvision.org",
+    // browserUrl: "https://testnet.monadexplorer.com/"
   },
   etherscan: {
     apiKey: {
       mainnet: process.env.ETHERSCAN_KEY || "",
       sepolia: process.env.ETHERSCAN_KEY || "",
-      'bera-bartio': process.env.BERA_EXPLORER_KEY  || ""
+      bera: process.env.BERASCAN_KEY  || "",
+      'bera-bartio': process.env.BERA_EXPLORER_KEY  || "",
+      story: process.env.STORYSCAN_KEY  || "",
+      'tac-spb': process.env.TAC_SPB_EXPLORER_KEY  || "",
     },
     customChains: [
+      {
+        network: "story",
+        chainId: 1514,
+        urls: {
+          apiURL: "https://www.storyscan.io/api",
+          browserURL: "https://storyscan.io"
+        }
+      },
+      {
+        network: "bera",
+        chainId: 80094,
+        urls: {
+          apiURL: "https://api.berascan.com/api",
+          browserURL: "https://berascan.com"
+        }
+      },
       {
         network: "bera-bartio",
         chainId: 80084,
@@ -112,7 +157,14 @@ const config: HardhatUserConfig = {
           browserURL: "https://bartio.beratrail.io"
         }
       },
-
+      {
+        network: "tac-spb",
+        chainId: 2391,
+        urls: {
+          apiURL: "https://spb.explorer.tac.build/api",
+          browserURL: "https://spb.explorer.tac.build"
+        }
+      }
     ]
   },
 };
@@ -121,7 +173,11 @@ if (deployerKey) {
   config.networks = {
     mainnet: createTestnetConfig("mainnet"),
     sepolia: createTestnetConfig("sepolia"),
+    bera: createTestnetConfig('bera'),
     'bera-bartio': createTestnetConfig('bera-bartio'),
+    story: createTestnetConfig('story'),
+    'monad-testnet': createTestnetConfig('monad-testnet'),
+    'tac-spb': createTestnetConfig('tac-spb'),
   };
 }
 

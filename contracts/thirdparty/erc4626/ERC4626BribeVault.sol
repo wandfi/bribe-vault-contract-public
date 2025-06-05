@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
-
-// import "hardhat/console.sol";
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import "./Vault.sol";
+
+import "../../vaults/Vault.sol";
 
 contract ERC4626BribeVault is Vault {
   using Math for uint256;
@@ -21,19 +20,22 @@ contract ERC4626BribeVault is Vault {
     string memory _pTokenName, string memory _pTokensymbol
   ) Vault(_protocol, _settings, _redeemPoolFactory, _bribesPoolFactory, _assetToken_, _pTokenName, _pTokensymbol) {
     require(_erc4626 != address(0), "Zero address detected");
-    
     erc4626 = IERC4626(_erc4626);
-    IERC20(assetToken).approve(address(erc4626), type(uint256).max);
+  }
+
+  function redeemAssetToken() public view override returns (address) {
+    return address(erc4626);
   }
 
   /* ========== INTERNAL FUNCTIONS ========== */
 
-  function _balanceOfUnderlyingVault() internal view override returns (uint256) {
+  function _assetBalance() internal view override returns (uint256) {
     uint256 shares = erc4626.balanceOf(address(this));
     return erc4626.previewRedeem(shares);
   }
 
   function _depositToUnderlyingVault(uint256 amount) internal override {
+    IERC20(assetToken).approve(address(erc4626), amount);
     erc4626.deposit(amount, address(this));
   }
 
@@ -56,10 +58,6 @@ contract ERC4626BribeVault is Vault {
     uint256 principalAssetAmount = IERC20(pToken).totalSupply();
     uint256 principalShares = erc4626.convertToShares(principalAssetAmount);
     uint256 totalShares = erc4626.balanceOf(address(this));
-    // console.log(
-    //   "_doUpdateStakingBribes, $PT total supply: %s, to ERC4626 shares: %s, B-Vault $ERC4626 shares: %s", 
-    //   principalAssetAmount, principalShares, totalShares
-    // );
 
     if (totalShares > principalShares) {
       uint256 yields = totalShares - principalShares;

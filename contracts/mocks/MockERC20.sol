@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "../settings/ProtocolOwner.sol";
@@ -48,6 +48,12 @@ contract MockERC20 is ERC20, ERC20Burnable, ProtocolOwner, ReentrancyGuard {
 
   function setDecimals(uint8 decimals_) external nonReentrant onlyOwner {
     _decimals = decimals_;
+  }
+
+  function batchSetTester(address[] memory accounts, bool tester) external nonReentrant onlyOwner {
+    for (uint256 i = 0; i < accounts.length; i++) {
+      _setTester(accounts[i], tester);
+    }
   }
 
   function setTester(address account, bool tester) external nonReentrant onlyOwner {

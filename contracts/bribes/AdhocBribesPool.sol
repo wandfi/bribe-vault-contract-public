@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
-// import "hardhat/console.sol";
-
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "../libs/TokensTransfer.sol";
@@ -31,10 +29,12 @@ contract AdhocBribesPool is Context, ReentrancyGuard {
 
   uint256 internal _totalSupply;
   mapping(address => uint256) internal _balances;
+  uint256 internal _maxTotalSupply;
 
   /* ========== CONSTRUCTOR ========== */
 
   constructor(address _vault, uint256 _epochEndTimestamp) {
+    require(_vault != address(0), "Zero address dectected");
     vault = _vault;
     epochEndTimestamp = _epochEndTimestamp;
   }
@@ -47,6 +47,10 @@ contract AdhocBribesPool is Context, ReentrancyGuard {
 
   function balanceOf(address user) external view returns (uint256) {
     return _balances[user];
+  }
+
+  function maxTotalSupply() external view returns (uint256) {
+    return _maxTotalSupply;
   }
 
   function collectableYT(address user) public view returns (uint256, uint256) {
@@ -94,9 +98,18 @@ contract AdhocBribesPool is Context, ReentrancyGuard {
       if (bribes > 0) {
         userBribes[_msgSender()][bribeToken] = 0;
         TokensTransfer.transferTokens(bribeToken, address(this), _msgSender(), bribes);
-        // console.log('getBribes, user: %s, token: %s, bribes: %s', _msgSender(), bribeToken, bribes);
         emit BribesPaid(_msgSender(), bribeToken, bribes);
       }
+    }
+  }
+
+  function getBribe(address bribeToken) external nonReentrant updateBribes(_msgSender(), bribeToken) {
+    require(_bribeTokens.contains(bribeToken), "Invalid bribe token");
+    uint256 bribes = userBribes[_msgSender()][bribeToken];
+    if (bribes > 0) {
+      userBribes[_msgSender()][bribeToken] = 0;
+      TokensTransfer.transferTokens(bribeToken, address(this), _msgSender(), bribes);
+      emit BribesPaid(_msgSender(), bribeToken, bribes);
     }
   }
 
@@ -118,6 +131,10 @@ contract AdhocBribesPool is Context, ReentrancyGuard {
 
     ytSum[user] = ytSum[user] + deltaYTAmount;
     ytLastCollectTime[user] = ytCollectTimestamp;
+
+    if (block.timestamp < epochEndTimestamp) {
+      _maxTotalSupply = _maxTotalSupply + deltaYTAmount * (epochEndTimestamp - block.timestamp);
+    }
   }
 
   function _notifyYTCollectedForUser(address user, uint256 deltaTimeWeightedYTAmount) internal updateAllBribes(user) {
@@ -129,7 +146,7 @@ contract AdhocBribesPool is Context, ReentrancyGuard {
     emit TimeWeightedYTAdded(user, deltaTimeWeightedYTAmount);
   }
 
-  function addBribes(address bribeToken, uint256 bribesAmount) external nonReentrant onlyVault updateBribes(address(0), bribeToken) {
+  function addBribes(address bribeToken, uint256 bribesAmount) external nonReentrant onlyVault {
     require(_totalSupply > 0, "Cannot add bribes without YT staked");
     require(bribesAmount > 0, "Too small bribes amount");
 

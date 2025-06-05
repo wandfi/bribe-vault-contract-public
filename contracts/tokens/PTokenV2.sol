@@ -6,11 +6,11 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "../interfaces/IProtocolSettings.sol";
-import "../interfaces/IPToken.sol";
+import "../interfaces/IPTokenV2.sol";
 import "../interfaces/IProtocol.sol";
 import "../settings/ProtocolOwner.sol";
 
-contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
+contract PTokenV2 is IPTokenV2, ProtocolOwner, ReentrancyGuard {
   using Math for uint256;
 
   uint256 constant internal INFINITE_ALLOWANCE = type(uint256).max;
@@ -28,6 +28,11 @@ contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
   mapping(address => uint256) private _shares;
 
   mapping (address => mapping (address => uint256)) private _allowances;
+
+  uint256 public rebaseRate;
+  uint256 public rebaseFinish;
+  uint256 public lastRebaseSettleTime;
+  uint256 constant public RebaseRateScale = 1e36;  
 
   constructor(address _protocol, address _settings, string memory _name, string memory _symbol, uint8 _decimals) ProtocolOwner(_protocol) {
     require(_protocol != address(0) && _settings != address(0), "Zero address detected");
@@ -60,7 +65,13 @@ contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
   /* ================= IERC20 Views ================ */
 
   function totalSupply() public view returns (uint256) {
-    return _totalSupply;
+    if (rebaseFinish == 0) {
+      return _totalSupply;
+    }
+
+    uint256 endTime = Math.min(block.timestamp, rebaseFinish);
+    uint256 pendingRebase = (endTime - lastRebaseSettleTime).mulDiv(rebaseRate, RebaseRateScale, Math.Rounding.Floor);
+    return _totalSupply + pendingRebase;
   }
 
   function balanceOf(address account) public view returns (uint256) {
@@ -121,9 +132,26 @@ contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
 
   /* ================= IPToken Functions ================ */
 
+  function flushRebase() external nonReentrant onlyVault {
+    _settleRebase();
+
+    if (rebaseFinish > block.timestamp) {
+      uint256 settleAmount = (rebaseFinish - block.timestamp).mulDiv(rebaseRate, RebaseRateScale, Math.Rounding.Floor);
+      _totalSupply = _totalSupply + settleAmount;
+      emit FlushRebased(settleAmount);
+
+      // reset rebase settings
+      rebaseFinish = 0;
+      rebaseRate = 0;
+      lastRebaseSettleTime = 0;
+    }
+  }
+
   function mint(address to, uint256 amount) external nonReentrant onlyVault returns (uint256) {
     require(to != address(0), "Zero address detected");
     require(amount > 0, 'Amount too small');
+
+    _settleRebase();
 
     uint256 sharesAmount = _convertToShares(amount, Math.Rounding.Floor);
     _mintShares(to, sharesAmount);
@@ -134,15 +162,30 @@ contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
     return sharesAmount;
   }
 
-  function rebase(uint256 addedSupply) external nonReentrant onlyVault {
-    require(addedSupply > 0, 'Amount too small');
-    _totalSupply = _totalSupply + addedSupply;
-    emit Rebased(addedSupply);
+  function rebase(uint256 addedSupply, uint256 duration) external nonReentrant onlyVault {
+    require(addedSupply > 0 && duration > 0, "Invalid rebase parameters");
+
+    _settleRebase();
+
+    if (block.timestamp >= rebaseFinish) {
+      rebaseRate = addedSupply.mulDiv(RebaseRateScale, duration, Math.Rounding.Floor);
+    }
+    else {
+      uint256 leftover = (rebaseFinish - block.timestamp).mulDiv(rebaseRate, RebaseRateScale, Math.Rounding.Floor);
+      rebaseRate = (addedSupply + leftover).mulDiv(RebaseRateScale, duration, Math.Rounding.Floor);
+    }
+
+    lastRebaseSettleTime = block.timestamp;
+    rebaseFinish = block.timestamp + duration;
+
+    emit Rebased(addedSupply, duration);
   }
 
   function burn(address account, uint256 amount) external nonReentrant onlyVault returns (uint256) {
     require(account != address(0), "Zero address detected");
     require(amount > 0, 'Amount too small');
+
+    _settleRebase();
 
     uint256 sharesAmount = _convertToShares(amount, Math.Rounding.Ceil);
     _burnShares(account, sharesAmount);
@@ -170,17 +213,26 @@ contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
 
   /* ================= INTERNAL Functions ================ */
 
+  function _settleRebase() internal {
+    if (rebaseFinish > 0) {
+      uint256 endTime = Math.min(block.timestamp, rebaseFinish);
+      uint256 settleAmount = (endTime - lastRebaseSettleTime).mulDiv(rebaseRate, RebaseRateScale, Math.Rounding.Floor);
+      _totalSupply = _totalSupply + settleAmount;
+    }
+    lastRebaseSettleTime = Math.min(block.timestamp, rebaseFinish);
+  }
+
   function _convertToShares(uint256 balance, Math.Rounding rounding) internal view virtual returns (uint256) {
     return balance.mulDiv(
       _totalShares + 10 ** decimalsOffset(),
-      _totalSupply + 1,
+      totalSupply() + 1,
       rounding
     );
   }
 
   function _convertToBalance(uint256 shares, Math.Rounding rounding) internal view virtual returns (uint256) {
     return shares.mulDiv(
-      _totalSupply + 1,
+      totalSupply() + 1,
       _totalShares + 10 ** decimalsOffset(), 
       rounding
     );
@@ -255,5 +307,6 @@ contract PToken is IPToken, ProtocolOwner, ReentrancyGuard {
   /* ================= Events ================ */
 
   event TransferShares(address indexed from, address indexed to, uint256 sharesValue);
-  event Rebased(uint256 addedSupply);
+  event Rebased(uint256 addedSupply, uint256 duration);
+  event FlushRebased(uint256 flushedRebase);
 }

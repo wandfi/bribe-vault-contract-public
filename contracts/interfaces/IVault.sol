@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import "../libs/Constants.sol";
 
@@ -14,6 +14,8 @@ interface IVault {
   function assetToken() external view returns (address);
 
   function assetBalance() external view returns (uint256);
+
+  function redeemAssetToken() external view returns (address);
 
   function pToken() external view returns (address);
 

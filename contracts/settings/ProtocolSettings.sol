@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
-import "hardhat/console.sol";
-
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "../interfaces/IProtocolSettings.sol";
@@ -28,10 +26,11 @@ contract ProtocolSettings is IProtocolSettings, ProtocolOwner, ReentrancyGuard {
   mapping(address => mapping(bytes32 => uint256)) internal _vaultParams;
 
   constructor(address _protocol_, address _treasury_) ProtocolOwner(_protocol_) {
+    require(_treasury_ != address(0), "Zero address dectected");
     _treasury = _treasury_;
 
-    // Epoch duration. Default to 15 days, [1 hour, 5 year]
-    _upsertParamConfig("D", 15 days, 1 hours, 1825 days);
+    // Epoch duration. Default to 30 days, [1 hour, 5 year]
+    _upsertParamConfig("D", 30 days, 1 hours, 1825 days);
     // Initial APR. Default to 200%, [1%, 1000%]
     _upsertParamConfig("APRi", 2 * 10 ** 10, 10 ** 8, 10 ** 11);
 
@@ -56,7 +55,7 @@ contract ProtocolSettings is IProtocolSettings, ProtocolOwner, ReentrancyGuard {
   }
 
   function isValidParam(bytes32 param, uint256 value) public view returns (bool) {
-    if (param.length == 0 || !_paramsSet.contains(param)) {
+    if (!_paramsSet.contains(param)) {
       return false;
     }
 

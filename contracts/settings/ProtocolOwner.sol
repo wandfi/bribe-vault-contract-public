@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
 import "../interfaces/IProtocol.sol";
@@ -12,17 +12,12 @@ abstract contract ProtocolOwner is Context {
     protocol = IProtocol(_protocol_);
   }
 
-  modifier onlyProtocol() {
-    require(_msgSender() == address(protocol), "Ownable: caller is not the protocol");
-    _;
-  }
-
   modifier onlyOwner() {
-    require(_msgSender() == IProtocol(protocol).protocolOwner(), "Ownable: caller is not the owner");
+    require(_msgSender() == protocol.protocolOwner(), "Ownable: caller is not the owner");
     _;
   }
 
   function owner() public view returns(address) {
-    return IProtocol(protocol).protocolOwner();
+    return protocol.protocolOwner();
   }
 }

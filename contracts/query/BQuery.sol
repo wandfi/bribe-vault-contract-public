@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
-import "./interfaces/IPToken.sol";
-import "./interfaces/IVault.sol";
-import "./libs/Constants.sol";
+import "../interfaces/IPToken.sol";
+import "../interfaces/IVault.sol";
+import "../libs/Constants.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -296,6 +296,7 @@ contract BQuery is Ownable {
     }
 
     function setCrocQuery(address cq) external onlyOwner {
+        require(cq != address(0), "Zero address detected");
         crocquery = cq;
     }
 }

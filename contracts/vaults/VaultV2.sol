@@ -13,16 +13,16 @@ import "../libs/VaultCalculator.sol";
 import "../interfaces/IBribesPool.sol";
 import "../interfaces/IBribesPoolFactory.sol";
 import "../interfaces/IProtocolSettings.sol";
-import "../interfaces/IPToken.sol";
+import "../interfaces/IPTokenV2.sol";
 import "../interfaces/IRedeemPool.sol";
 import "../interfaces/IRedeemPoolFactory.sol";
 import "../interfaces/IVault.sol";
 import "../interfaces/IProtocol.sol";
 import "../settings/ProtocolOwner.sol";
-import "../tokens/PToken.sol";
+import "../tokens/PTokenV2.sol";
 import "./BriberExtension.sol";
 
-abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, BriberExtension {
+abstract contract VaultV2 is IVault, Pausable, ReentrancyGuard, ProtocolOwner, BriberExtension {
   using DoubleEndedQueue for DoubleEndedQueue.Bytes32Deque;
   using EnumerableSet for EnumerableSet.AddressSet;
   using VaultCalculator for IVault;
@@ -69,9 +69,11 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
 
     assetToken = _assetToken_;
     // PToken's decimals should be the same as the asset token's decimals
-    pToken = address(new PToken(_protocol, _settings, _pTokenName, _pTokenSymbol, assetDecimals));
+    pToken = address(new PTokenV2(_protocol, _settings, _pTokenName, _pTokenSymbol, assetDecimals));
     ytDecimals = assetDecimals;
   }
+
+  receive() external payable {}
 
   /* ================= VIEWS ================ */
 
@@ -80,7 +82,7 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
   }
 
   function assetBalance() public view override whenNotClosed returns (uint256) {
-    return _assetBalance();
+    return _balanceOfUnderlyingVault();
   }
 
   function currentEpochId() public view returns (uint256) {
@@ -145,7 +147,7 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
 
     // mint pToken to user
     uint256 pTokenAmount = amount;
-    uint256 pTokenSharesAmount = IPToken(pToken).mint(_msgSender(), pTokenAmount);
+    uint256 pTokenSharesAmount = IPTokenV2(pToken).mint(_msgSender(), pTokenAmount);
     emit PTokenMinted(_msgSender(), amount, pTokenAmount, pTokenSharesAmount);
 
     uint256 yTokenAmount = amount;
@@ -168,8 +170,8 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
   }
 
   function redeem(uint256 amount) external nonReentrant whenClosed noneZeroAmount(amount) {
-    require(amount <= IPToken(pToken).balanceOf(_msgSender()));
-    uint256 sharesAmount = IPToken(pToken).getSharesByBalance(amount);
+    require(amount <= IPTokenV2(pToken).balanceOf(_msgSender()));
+    uint256 sharesAmount = IPTokenV2(pToken).getSharesByBalance(amount);
 
     _redeemOnClose(amount);
     emit Redeem(_msgSender(), amount, sharesAmount);
@@ -195,7 +197,7 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
     _depositToUnderlyingVault(netAmount);
 
     uint256 pTokenAmount = netAmount;
-    IPToken(pToken).rebase(pTokenAmount);
+    IPTokenV2(pToken).rebase(pTokenAmount, epoch.startTime + epoch.duration - block.timestamp);
 
     _assetTotalSwapAmount[_currentEpochId] = _assetTotalSwapAmount[_currentEpochId] + netAmount;
 
@@ -316,6 +318,8 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
   }
 
   function _onEndEpoch(uint256 epochId) internal {
+    IPTokenV2(pToken).flushRebase();
+    
     Constants.Epoch memory epoch = _epochs[epochId];
     IRedeemPool redeemPool = IRedeemPool(epoch.redeemPool);
     _settleRedeemPool(redeemPool);
@@ -359,7 +363,7 @@ abstract contract Vault is IVault, Pausable, ReentrancyGuard, ProtocolOwner, Bri
     _doUpdateStakingBribes(stakingBribesPool);
   }
 
-  function _assetBalance() internal view virtual returns (uint256);
+  function _balanceOfUnderlyingVault() internal view virtual returns (uint256);
 
   function _depositToUnderlyingVault(uint256 amount) internal virtual;
 

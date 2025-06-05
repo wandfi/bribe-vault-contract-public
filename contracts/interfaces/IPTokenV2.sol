@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface IPToken is IERC20 {
+interface IPTokenV2 is IERC20 {
   function decimals() external view returns (uint8);
 
   function mint(address to, uint256 amount) external returns (uint256);
@@ -18,5 +18,7 @@ interface IPToken is IERC20 {
 
   function transferSharesFrom(address sender, address to, uint256 sharesAmount) external returns (uint256);
 
-  function rebase(uint256 addedSupply) external;
+  function rebase(uint256 addedSupply, uint256 duration) external;
+
+  function flushRebase() external;
 }
